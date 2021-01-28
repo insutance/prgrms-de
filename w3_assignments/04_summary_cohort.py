@@ -47,7 +47,7 @@ for i in range(len(months)):
 
 cur.execute(sql_create_table %(db["redshift_user"], "summary_cohort", fields))
 
-# 첫 월은 모두 신규이기 때문에 신규 가져오는 sql
+# '해당 월' 중복제거한 유저들을 가져오는 SQL
 sql_get_users = "SELECT DISTINCT usc.userid\
                     FROM raw_data.user_session_channel usc\
                     JOIN raw_data.session_timestamp st\
@@ -55,37 +55,28 @@ sql_get_users = "SELECT DISTINCT usc.userid\
                     WHERE TO_CHAR(st.ts, 'YYYY-MM') = %s \
                     ORDER BY 1"
 
-# EXCEPT를 사용해 cohort를 계산하는 sql
-sql_get_cohorts = "(SELECT DISTINCT usc.userid\
-                    FROM raw_data.user_session_channel usc\
-                    JOIN raw_data.session_timestamp st\
-                    ON usc.sessionid = st.sessionid\
-                    WHERE TO_CHAR(st.ts, 'YYYY-MM') = %s\
-                    ORDER BY 1)\
-                    EXCEPT\
-                    (SELECT DISTINCT usc.userid\
-                    FROM raw_data.user_session_channel usc\
-                    JOIN raw_data.session_timestamp st\
-                    ON usc.sessionid = st.sessionid\
-                    WHERE TO_CHAR(st.ts, 'YYYY-MM') = %s\
-                    ORDER BY 1)"
-
 # INSERT sql
 sql_insert_values = "INSERT INTO %s.%s\
                     VALUES (%s)"
 
-for i in range(len(months)):                # 위에서 구한 '월' 크기만큼 반복문 실행
-    data = ""   
-    data += "'"+months[i][0] +"'" + ', '    # 값의 처음에는 '월'이 들어간다 ex) '2019-05'
+all_new_users = []                          # 모든 신규 유저들을 저장해 놓는 빈 배열 생성
+for i in range(len(months)):                # 위에서 구한 'months(timestamp를 GROUP BY한 데이터들)' 크기만큼 반복문 실행
+    data = ""                               # VALUES 안에 넣을 값을 빈 str로 초기화
+    data += "'"+months[i][0] +"'" + ', '    # 값의 처음에는 '해당 월'이 들어간다 ex) '2019-05'
     
-    if i == 0:  cur.execute(sql_get_users, months[i])                   # '첫 월'은 모든 유저가 신규
-    else:       cur.execute(sql_get_cohorts, (months[i], months[i-1]))  # '2번째 월'부터 비교를 한다. ex) 6월달이면 5월달이랑 비교, 7월달이면 6월달이랑 비교
-    data += str(len(cur.fetchall()))        # 구한 값을 data에 저장 (int)
+    cur.execute(sql_get_users, months[i])   # '해당 월'에 '중복이 제거된' 유저들을 가져온다.
+    month_users = cur.fetchall()            
     
-    for j in range(i, len(months)):         # 해당 달에 들어온 신규유저가 다음 달에 있는지 비교 ex) 6월달이면 (6월,7월), (6월,8월), (6월,9월)... 비교
+    new_users = set(month_users)-set(all_new_users)     # '신규 유저'=='해당월 유저'-'모든 신규 유저'
+    data += str(len(new_users))                         # len()을 통해 '신규 유저 수'를 저장
+    all_new_users += new_users                          # '신규 유저'를 '모든 신규 유저 배열'에 추가한다.
+    
+    for j in range(i, len(months)):         
         if i!=j:
-            cur.execute(sql_get_cohorts, (months[i], months[j]))
-            data += ','+ str(len(cur.fetchall()))   # INSERT INTO VALUES 할 때 ,(콤마) 필요하기 때문에 저장할 때 같이 저장.
+            cur.execute(sql_get_users, months[j])                                   # '해당 월' 기준으로 '다음 달 유저'를 가져온다.
+            next_month_users = cur.fetchall()
+            retention_users = set(new_users).intersection(set(next_month_users))    # '해당 달에서 생긴 신규회원이 유지된 수' = '신규 유저' INNER JOIN '다음 달 유저'
+            data += ','+ str(len(retention_users))                                  # INSERT INTO VALUES 할 때 ,(콤마) 필요하기 때문에 저장할 때 같이 저장.
         
     print(data)
     cur.execute(sql_insert_values %(db["redshift_user"], "summary_cohort", data))   # INSERT 실행
