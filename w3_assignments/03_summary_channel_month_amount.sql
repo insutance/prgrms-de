@@ -19,7 +19,7 @@
 CREATE TABLE summary_channel_month_amount AS
 SELECT ch.channel, tmp.month,
         COUNT(DISTINCT tmp.userid) uniqueuser,
-        COUNT(tmp.refunded) paiduser,
+        COUNT(CASE WHEN amount > 0 THEN userid END) paiduser,  -- 이렇게 해야함, 처음에 적은 코드 : COUNT(tmp.refunded) paiduser = 환불된 사용자의 수
         COALESCE((100.0*NULLIF(paiduser,0)/uniqueuser),0) conversionrate,      
         SUM(tmp.amount) grossrevenue,
         SUM(CASE tmp.amount
@@ -36,3 +36,4 @@ LEFT JOIN(
 ON ch.channel = tmp.channel
 GROUP BY 1,2
 ORDER BY 1,2;
+
