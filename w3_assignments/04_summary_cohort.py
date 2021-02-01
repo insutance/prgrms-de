@@ -80,3 +80,26 @@ for i in range(len(months)):                # 위에서 구한 'months(timestamp
         
     print(data)
     cur.execute(sql_insert_values %(db["redshift_user"], "summary_cohort", data))   # INSERT 실행
+
+
+
+
+""" 원하셨던 정답 코드 """
+sql = """
+    SELECT cohort_month,
+        DATEDIFF(month, cohort_month, visited_month)+1 month_N,
+        COUNT(DISTINCT cohort.userid) unique_users
+    FROM (                                                                      -- 사용자별로 처음 나타난 '월'을 기록(cohort_month)
+        SELECT userid, MIN(DATE_TRUNC('month', ts)) cohort_month                -- 여기서 중요한 점은 한 사용자는 하나의 월에만 소속
+        FROM raw_data.user_session_channel usc
+        JOIN raw_data.session_timestamp t ON t.sessionid = usc.sessionid
+        GROUP BY 1
+    ) cohort
+    JOIN (                                                                      -- 사용자별로 cohort_month 포함 그 뒤에 나타난 '월'을 기록(visited_month)
+        SELECT DISTINCT userid, DATE_TRUNC('month', ts) visited_month
+        FROM raw_data.user_session_channel usc
+        JOIN raw_data.session_timestamp t ON t.sessionid = usc.sessionid
+    ) visit ON cohort.cohort_month <= visit.visited_month and cohort.userid = visit.userid
+    GROUP BY 1, 2
+    ORDER BY 1, 2;
+    """
