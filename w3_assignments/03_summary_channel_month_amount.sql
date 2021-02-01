@@ -20,7 +20,8 @@ CREATE TABLE summary_channel_month_amount AS
 SELECT ch.channel, tmp.month,
         COUNT(DISTINCT tmp.userid) uniqueuser,
         COUNT(CASE WHEN amount > 0 THEN userid END) paiduser,  -- 이렇게 해야함, 처음에 적은 코드 : COUNT(tmp.refunded) paiduser = 환불된 사용자의 수
-        COALESCE((100.0*NULLIF(paiduser,0)/uniqueuser),0) conversionrate,      
+        COALESCE((100.0*NULLIF(paiduser,0)/uniqueuser),0) conversionrate,  -- COALESCE((100.0*NULLIF(paiduser,0)/uniqueuser),0)::decimal(7,2) conversionrate,
+                                                                           -- 마이너한 포인트입니다만 소수점 둘째자리까지 보이고 싶다면 마지막에 decimal(7,2)로 캐스팅을 하면 됩니다
         SUM(tmp.amount) grossrevenue,
         SUM(CASE tmp.amount
             WHEN tmp.refunded IS TRUE THEN 0
@@ -37,3 +38,18 @@ ON ch.channel = tmp.channel
 GROUP BY 1,2
 ORDER BY 1,2;
 
+
+-- 원하셨던 정답 코드
+SELECT LEFT(ts, 7) "month",
+       c.channel,
+       COUNT(DISTINCT userid) uniqueUsers,
+       COUNT(DISTINCT CASE WHEN amount > 0 THEN userid END) paidUsers,
+       ROUND(paidUsers::decimal*100/NULLIF(uniqueUsers, 0),2) conversionRate,
+       SUM(amount) grossRevenue,
+       SUM(CASE WHEN refunded is False THEN amount END) netRevenue
+FROM raw_data.channel c
+LEFT JOIN raw_data.user_session_channel usc ON c.channel = usc.channel
+LEFT JOIN raw_data.session_transaction st ON st.sessionid = usc.sessionid
+LEFT JOIN raw_data.session_timestamp t ON t.sessionid = usc.sessionid
+GROUP BY 1, 2
+ORDER BY 1, 2;
