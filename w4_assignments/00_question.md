@@ -20,6 +20,8 @@
 `BEGIN~END` 와 `BEGIN WORK~COMMIT WORK` 중 결국 어떤 것을 사용하는 것이 맞는지 궁금합니다..<br>
 "`BEGIN~END` and `BEGIN WORK~COMMIT WORK` 실행 중 오류가 발생하면 사이에 존재하는 모든 작업들을 rollback한다(?)" 이 내용이 맞다면 결국 같은 값이 나오기 때문입니다.
 
+=> 피드백 : 문법 표현에 차이가 있을 뿐 사실상 같다. (BEGIN~COMMIT도 가능)
+
 </br></br>
 
 ### 2) 차이점에 대해 비교해봤는데 잘못되 내용이 있으면 알려주시면 감사하겠습니다:)
@@ -32,6 +34,8 @@
 - `autocommit=True` 로 한다면 모든 `cur.execute(sql)`을 실행하면 자동으로 커밋된다(=DB에 적용이 된다).
 - `autocommit=False` 로 한다면 sql은 실행이 되지만 실제 DB에는 적용되지 않는다.
 
+=> 피드백 : 그래서 autocommit=False인 경우에는 롤백할지 커밋할지 명시적으로 SQL 혹은 psycogpg2 함수를 실행해주어야 합니다.
+
 </br></br>
 
 ### 3) '03_2_airflow_porting.py' 파일 내용 질문
@@ -39,6 +43,9 @@
 
 꼭 이렇게 `**kwargs` or `**context`를 사용해야 하는건가요 ?<br>
 아래와 같이 코드를 작성한 후 **Airflow Web > Admin > Xcoms** 에 들어가서 확인 했을 때 정상적인 값이 들어갔지만 `transform()`함수에서 어떻게 받아야 하는지 모르겠습니다..
+
+=> 피드백 : 파이썬 함수에서 airflow가 넘겨주는 값들 (execution_date 예를 들면) 혹은 params로 넘겨주는 값 (오늘 몇가지 예를 보여드렸죠)을 받으려면 provide_context를 True로 설정해야 합니다.
+
 ```python
 def extract():
     link = "https://s3-geospatial.s3-us-west-2.amazonaws.com/name_gender.csv"
